@@ -1,0 +1,292 @@
+#!/bin/bash
+# dellprint - PDF ohne Druckertreiber an den Dell C1660w schicken.
+#
+# Pipeline (wie foo2hbpl1-wrapper.in aus foo2zjs, aber ohne CUPS):
+#   Ghostscript (PDF -> Raster 600x600) | foo2hbpl1 (Raster -> HBPL1) | nc :9100
+#
+# Lizenz dieses Skripts: GPL-2.0-or-later (siehe README, "Lizenz").
+
+set -uo pipefail
+
+VERSION="1.0"
+PROG="dellprint"
+
+# ---- Festwerte, abgeleitet aus foo2hbpl1-wrapper.in / Dell-C1660.ppd --------
+RES="600x600"          # Wrapper: RES=600x600 "do not change this"
+CLIP="51,51,51,51"     # Wrapper: set_clipping 51 51 51 51 (0,085 inch)
+MEDIA="1"              # Wrapper: MEDIA=1 (Plain), PPD: MediaType plain -> -m1
+DIM_A4="4961x7016"     # Wrapper: 1|a4|A4)  DIM=4961x7016
+DIM_LETTER="5100x6600" # Wrapper: 4|letter) DIM=5100x6600
+
+CONFIG="${DELLPRINT_CONFIG:-$HOME/.config/dellprint/config}"
+LOGFILE="${DELLPRINT_LOG:-$HOME/Library/Logs/dellprint.log}"
+
+# ---- Standardwerte (Config und Kommandozeile ueberschreiben) -------------
+HOST=""
+PORT="9100"
+PAPER="a4"
+GS=""
+FOO2HBPL1=""
+HBPLDECODE=""
+MONO=0
+COPIES=1
+OUT=""
+DRYRUN=0
+
+# ---- Kommandozeile: erst Config lesen, dann CLI (CLI gewinnt) ---------------
+CLI_HOST="" CLI_PAPER=""
+
+# Verzeichnis des Skripts (Symlinks aufloesen)
+resolve_self() {
+    local p="$0" d
+    while [ -h "$p" ]; do
+        d="$(cd "$(dirname "$p")" && pwd)"
+        p="$(readlink "$p")"
+        case "$p" in /*) ;; *) p="$d/$p" ;; esac
+    done
+    cd "$(dirname "$p")" && pwd
+}
+SELF_DIR="$(resolve_self)"
+
+TMPDIR_JOB=""
+INPUT=""
+PAGES="?"
+TARGET="-"
+# shellcheck disable=SC2329  # per trap aufgerufen
+cleanup() { [ -n "$TMPDIR_JOB" ] && rm -rf "$TMPDIR_JOB"; }
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+
+log_line() { # $1 = Ergebnis
+    local d
+    d="$(dirname "$LOGFILE")"
+    mkdir -p "$d" 2>/dev/null || return 0
+    printf '%s\tdatei=%s\tseiten=%s\tziel=%s\tergebnis=%s\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S')" "${INPUT:--}" "$PAGES" "$TARGET" "$1" \
+        >>"$LOGFILE" 2>/dev/null || true
+}
+
+die() { # $1 = Meldung, $2 = Exit-Code (Standard 1)
+    echo "$PROG: $1" >&2
+    log_line "FEHLER: $1"
+    exit "${2:-1}"
+}
+
+usage() {
+    cat <<EOF
+Aufruf: $PROG [Optionen] datei.pdf
+
+Optionen:
+  --host <IP|Name>   Drucker-Adresse (sonst Config, sonst Bonjour-Suche)
+  --mono             Schwarzweiss (Standard: Farbe)
+  --paper a4|letter  Papierformat (Standard: a4)
+  --copies N         Anzahl Kopien, 1-99 (Standard: 1)
+  --out <datei>      HBPL-Datenstrom nur in Datei schreiben, nichts senden
+  --dry-run          umwandeln und mit hbpldecode pruefen, nichts senden
+  -h, --help         diese Hilfe
+  --version          Version
+
+Konfiguration: $CONFIG
+  (HOST=, PAPER=, GS=, FOO2HBPL1=, HBPLDECODE=, PORT=)
+Protokoll:     $LOGFILE
+EOF
+}
+
+# ---- Config laden ---------------------------------------------------------
+if [ -r "$CONFIG" ]; then
+    # shellcheck source=/dev/null
+    . "$CONFIG"
+fi
+
+# ---- Argumente ----------------------------------------------------------
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --host)    [ $# -ge 2 ] || die "--host braucht einen Wert." 2; CLI_HOST="$2"; shift 2 ;;
+        --host=*)  CLI_HOST="${1#*=}"; shift ;;
+        --mono)    MONO=1; shift ;;
+        --paper)   [ $# -ge 2 ] || die "--paper braucht einen Wert." 2; CLI_PAPER="$2"; shift 2 ;;
+        --paper=*) CLI_PAPER="${1#*=}"; shift ;;
+        --copies)  [ $# -ge 2 ] || die "--copies braucht einen Wert." 2; COPIES="$2"; shift 2 ;;
+        --copies=*) COPIES="${1#*=}"; shift ;;
+        --out)     [ $# -ge 2 ] || die "--out braucht einen Dateinamen." 2; OUT="$2"; shift 2 ;;
+        --out=*)   OUT="${1#*=}"; shift ;;
+        --dry-run) DRYRUN=1; shift ;;
+        -h|--help) usage; exit 0 ;;
+        --version) echo "$PROG $VERSION"; exit 0 ;;
+        --)        shift; break ;;
+        -*)        die "Unbekannte Option: $1 (siehe --help)" 2 ;;
+        *)         break ;;
+    esac
+done
+
+[ $# -eq 1 ] || { usage >&2; die "Genau eine PDF-Datei angeben." 2; }
+INPUT="$1"
+[ -n "$CLI_HOST" ] && HOST="$CLI_HOST"
+[ -n "$CLI_PAPER" ] && PAPER="$CLI_PAPER"
+
+# ---- Werte pruefen ----------------------------------------------------------
+case "$PAPER" in
+    a4|A4)         PAPER="a4";     DIM="$DIM_A4";     PAPERNAME="A4" ;;
+    letter|Letter) PAPER="letter"; DIM="$DIM_LETTER"; PAPERNAME="Letter" ;;
+    *) die "Unbekanntes Papierformat '$PAPER' (erlaubt: a4, letter)." 2 ;;
+esac
+case "$COPIES" in
+    ''|*[!0-9]*) die "--copies muss eine Zahl von 1 bis 99 sein." 2 ;;
+esac
+{ [ "$COPIES" -ge 1 ] && [ "$COPIES" -le 99 ]; } || die "--copies muss zwischen 1 und 99 liegen." 2
+case "$PORT" in ''|*[!0-9]*) die "PORT in der Config ist ungueltig." 2 ;; esac
+
+# ---- Eingabedatei -----------------------------------------------------------
+[ -e "$INPUT" ] || die "Datei nicht gefunden: $INPUT"
+[ -f "$INPUT" ] || die "Das ist keine normale Datei: $INPUT"
+[ -r "$INPUT" ] || die "Datei nicht lesbar: $INPUT"
+if ! head -c 1024 "$INPUT" | grep -aq '%PDF-'; then
+    die "Das ist keine PDF-Datei: $INPUT"
+fi
+
+# ---- Werkzeuge finden -------------------------------------------------------
+if [ -z "$GS" ]; then
+    for c in /opt/homebrew/bin/gs /usr/local/bin/gs; do
+        [ -x "$c" ] && { GS="$c"; break; }
+    done
+fi
+[ -n "$GS" ] && [ -x "$GS" ] || die "Ghostscript nicht gefunden. Installieren mit 'brew install ghostscript' oder GS= in $CONFIG setzen."
+
+find_tool() { # $1 = Name, $2 = bereits gesetzter Wert
+    local c
+    [ -n "$2" ] && { echo "$2"; return; }
+    for c in "$SELF_DIR/../share/dellprint/bin/$1" "$SELF_DIR/bin/$1"; do
+        [ -x "$c" ] && { echo "$c"; return; }
+    done
+}
+FOO2HBPL1="$(find_tool foo2hbpl1 "$FOO2HBPL1")"
+HBPLDECODE="$(find_tool hbpldecode "$HBPLDECODE")"
+[ -n "$FOO2HBPL1" ] && [ -x "$FOO2HBPL1" ] || die "foo2hbpl1 nicht gefunden. Bitte ./build.sh ausfuehren."
+[ -n "$HBPLDECODE" ] && [ -x "$HBPLDECODE" ] || die "hbpldecode nicht gefunden. Bitte ./build.sh ausfuehren."
+
+TMPDIR_JOB="$(mktemp -d "${TMPDIR:-/tmp}/dellprint.XXXXXX")" || die "Kein temporaeres Verzeichnis anlegbar."
+
+# ---- Seitenzahl -------------------------------------------------------------
+count_pages() {
+    local esc
+    esc="$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/(/\\(/g' -e 's/)/\\)/g')"
+    "$GS" -q -dNODISPLAY -dNOSAFER -c "($esc) (r) file runpdfbegin pdfpagecount = quit" 2>/dev/null | tail -n 1
+}
+PAGES="$(count_pages "$INPUT")"
+case "$PAGES" in
+    ''|*[!0-9]*) PAGES="?"; die "PDF nicht lesbar (Seitenzahl nicht ermittelbar): $INPUT" ;;
+esac
+[ "$PAGES" -ge 1 ] || die "PDF enthaelt keine Seiten: $INPUT"
+
+# ---- Umwandeln --------------------------------------------------------------
+STREAM="$TMPDIR_JOB/job.hbpl"
+GSERR="$TMPDIR_JOB/gs.err"
+if [ "$MONO" -eq 1 ]; then
+    GSDEV="pgmraw"       # Wrapper: GSDEV=-sDEVICE=pgmraw (Monochrom)
+    MODENAME="Mono"
+else
+    GSDEV="pamcmyk32"    # Wrapper: bei -c GSDEV=-sDEVICE=pamcmyk32
+    MODENAME="Color"
+fi
+JOBNAME="$(basename "$INPUT" | tr -c 'A-Za-z0-9._ -' '_' | cut -c1-40)"
+USERNAME="$(printf '%s' "${USER:-user}" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-30)"
+
+echo "Wandle um: $INPUT ($PAGES Seite(n), $PAPERNAME, $MODENAME, $RES dpi) ..."
+# -dFIXEDMEDIA -dPDFFitPage: PDF-Seite auf das feste Blatt skalieren (der
+# Wrapper bekommt von CUPS schon fertig passendes PostScript; hier nicht).
+"$GS" -q -dBATCH -dSAFER -dQUIET -dNOPAUSE \
+    -dFIXEDMEDIA -dPDFFitPage \
+    -sPAPERSIZE="$PAPER" -g"$DIM" -r"$RES" -sDEVICE="$GSDEV" \
+    -sOutputFile=- "$INPUT" 2>"$GSERR" \
+    | "$FOO2HBPL1" -m"$MEDIA" -u"$CLIP" -J "$JOBNAME" -U "$USERNAME" >"$STREAM" 2>>"$GSERR"
+rc=("${PIPESTATUS[@]}")
+if [ "${rc[0]}" -ne 0 ] || [ "${rc[1]}" -ne 0 ]; then
+    detail="$(head -n 3 "$GSERR" | tr '\n' ' ')"
+    die "Umwandlung fehlgeschlagen (gs=${rc[0]}, foo2hbpl1=${rc[1]}): $detail"
+fi
+[ -s "$STREAM" ] || die "Umwandlung lieferte keine Daten."
+if grep -q "Not an acceptable" "$GSERR"; then
+    die "foo2hbpl1 meldet ungueltige Rasterdaten."
+fi
+
+# ---- Pruefen mit hbpldecode ------------------------------------------------
+DECODE="$TMPDIR_JOB/decode.txt"
+"$HBPLDECODE" <"$STREAM" >"$DECODE" 2>&1 || die "hbpldecode konnte den Datenstrom nicht lesen."
+D_PAGES="$(grep -c 'image found' "$DECODE")"
+D_PAPER="$(sed -n 's/.*\[paper=\([^]]*\)\].*/\1/p' "$DECODE" | sort -u | tr '\n' ' ' | sed 's/ $//')"
+D_MODE="$(grep -oE '\[(Color|Mono)\]' "$DECODE" | tr -d '[]' | sort -u | tr '\n' ' ' | sed 's/ $//')"
+D_RES="$(sed -n 's/.*SET RESOLUTION=\([0-9]*\).*/\1/p' "$DECODE" | head -n 1)"
+D_SIZE="$(sed -n 's/.*a2 c4: \([0-9]*x[0-9]*\) .*/\1/p' "$DECODE" | sort -u | tr '\n' ' ' | sed 's/ $//')"
+echo "Pruefung: Seiten=$D_PAGES Papier=$D_PAPER Modus=$D_MODE Aufloesung=${D_RES}dpi Seitengroesse(px)=$D_SIZE"
+[ "$D_PAGES" = "$PAGES" ] || die "Seitenzahl im Datenstrom ($D_PAGES) weicht vom PDF ($PAGES) ab."
+[ "$D_PAPER" = "$PAPERNAME" ] || die "Papierformat im Datenstrom ($D_PAPER) weicht ab (erwartet $PAPERNAME)."
+[ "$D_MODE" = "$MODENAME" ] || die "Farbmodus im Datenstrom ($D_MODE) weicht ab (erwartet $MODENAME)."
+[ "$D_RES" = "600" ] || die "Aufloesung im Datenstrom ($D_RES) ist nicht 600 dpi."
+
+# ---- Ausgabe: Datei / Trockenlauf ---------------------------------------------
+if [ -n "$OUT" ]; then
+    cp "$STREAM" "$OUT" 2>/dev/null || die "Ausgabedatei nicht schreibbar: $OUT"
+    TARGET="datei:$OUT"
+    echo "Datenstrom geschrieben: $OUT ($(wc -c <"$OUT" | tr -d ' ') Bytes)"
+    log_line "OK (nur Datei)"
+    exit 0
+fi
+if [ "$DRYRUN" -eq 1 ]; then
+    TARGET="dry-run"
+    echo "Trockenlauf: nichts gesendet."
+    log_line "OK (Trockenlauf)"
+    exit 0
+fi
+
+# ---- Drucker finden (Bonjour) ---------------------------------------------------
+discover_host() {
+    local dnssd="${DELLPRINT_DNSSD:-/usr/bin/dns-sd}" secs="${DELLPRINT_BROWSE_SECS:-4}"
+    local b="$TMPDIR_JOB/browse.txt" l="$TMPDIR_JOB/lookup.txt" pid name line h p ip
+    [ -x "$dnssd" ] || return 1
+    "$dnssd" -B _pdl-datastream._tcp local. >"$b" 2>&1 &
+    pid=$!
+    sleep "$secs"
+    kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+    name="$(grep ' Add ' "$b" | sed -n 's/.*_pdl-datastream\._tcp\. *//p' \
+            | grep '^Dell C1660w Color Printer' | head -n 1)"
+    [ -n "$name" ] || return 1
+    "$dnssd" -L "$name" _pdl-datastream._tcp local. >"$l" 2>&1 &
+    pid=$!
+    sleep "$((secs / 2 + 1))"
+    kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+    line="$(grep 'can be reached at' "$l" | head -n 1)"
+    [ -n "$line" ] || return 1
+    h="$(printf '%s' "$line" | sed -n 's/.*can be reached at \([^ ]*\):\([0-9]*\).*/\1/p')"
+    p="$(printf '%s' "$line" | sed -n 's/.*can be reached at \([^ ]*\):\([0-9]*\).*/\2/p')"
+    h="${h%.}"
+    [ -n "$h" ] || return 1
+    ip="$(dscacheutil -q host -a name "$h" 2>/dev/null | sed -n 's/^ip_address: \([0-9.]*\)$/\1/p' | head -n 1)"
+    echo "${ip:-$h} ${p:-$PORT}"
+}
+
+if [ -z "$HOST" ]; then
+    echo "Kein Host konfiguriert - suche Drucker per Bonjour ..."
+    found="$(discover_host)" || found=""
+    HOST="${found%% *}"
+    [ -n "$found" ] && PORT="${found##* }"
+    [ -n "$HOST" ] || die "Kein Drucker per Bonjour gefunden. Ist der Dell C1660w eingeschaltet und im selben WLAN? Alternativ --host <IP> angeben oder HOST= in $CONFIG setzen."
+    echo "Drucker gefunden: $HOST:$PORT"
+fi
+TARGET="$HOST:$PORT"
+
+# ---- Erreichbarkeit + Senden --------------------------------------------------------
+nc -z -G 3 "$HOST" "$PORT" >/dev/null 2>&1 \
+    || die "Drucker $HOST:$PORT nicht erreichbar. Eingeschaltet? Im WLAN? IP korrekt?"
+
+n=1
+while [ "$n" -le "$COPIES" ]; do
+    echo "Sende Kopie $n von $COPIES an $HOST:$PORT ..."
+    # -G: Verbindungs-Timeout, -w: Abbruch bei 60 s ohne Datenfluss
+    if ! nc -G 5 -w 60 "$HOST" "$PORT" <"$STREAM" >/dev/null 2>"$TMPDIR_JOB/nc.err"; then
+        die "Senden an $HOST:$PORT fehlgeschlagen (Kopie $n): $(head -n 1 "$TMPDIR_JOB/nc.err")"
+    fi
+    n=$((n + 1))
+done
+echo "Fertig: $PAGES Seite(n) x $COPIES an $HOST:$PORT gesendet."
+log_line "OK gesendet (${COPIES}x)"
+exit 0
