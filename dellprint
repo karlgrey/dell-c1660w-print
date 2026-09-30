@@ -275,7 +275,14 @@ fi
 TARGET="$HOST:$PORT"
 
 # ---- Erreichbarkeit + Senden --------------------------------------------------------
-nc -z -G 3 "$HOST" "$PORT" >/dev/null 2>&1 \
+# Aus dem Ruhezustand antwortet der Drucker erst nach ein paar Sekunden
+# (beobachtet 30.09.2026) - deshalb mehrere Versuche.
+reachable=0
+for try in 1 2 3 4; do
+    if nc -z -G 3 "$HOST" "$PORT" >/dev/null 2>&1; then reachable=1; break; fi
+    [ "$try" -lt 4 ] && { echo "Drucker antwortet noch nicht (Versuch $try/4), warte ..."; sleep 3; }
+done
+[ "$reachable" -eq 1 ] \
     || die "Drucker $HOST:$PORT nicht erreichbar. Eingeschaltet? Im WLAN? IP korrekt?"
 
 n=1
