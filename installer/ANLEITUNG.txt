@@ -1,0 +1,46 @@
+DELL C1660w DRUCKEN - INSTALLATIONSANLEITUNG
+============================================
+
+Voraussetzung: Der Mac und der Drucker sind im selben WLAN, der Drucker ist
+eingeschaltet. Zum Installieren wird Internet benoetigt.
+
+1) ENTPACKEN
+   Die Datei "dellprint-installer.zip" per Doppelklick entpacken. Es entsteht
+   der Ordner "dellprint-installer". Den Ordner nicht veraendern.
+
+2) INSTALLATION STARTEN
+   Im Ordner mit gedrueckter ctrl-Taste (oder Rechtsklick) auf
+   "Installieren.command" klicken -> "Oeffnen" -> im Fenster nochmal "Oeffnen".
+   (Beim ersten Mal noetig, weil das Programm nicht aus dem App Store stammt.)
+   Blockiert macOS es trotzdem: Systemeinstellungen -> "Datenschutz &
+   Sicherheit" -> ganz nach unten scrollen -> bei der Meldung zu
+   "Installieren.command" auf "Dennoch oeffnen" klicken.
+
+3) DEN ANWEISUNGEN IM FENSTER FOLGEN
+   Es oeffnet sich ein Terminal-Fenster mit Text - das ist normal.
+   - Wenn nach dem "Passwort" gefragt wird: das ist das Passwort, mit dem Sie
+     den Mac einschalten (Anmeldepasswort). Beim Tippen erscheint nichts,
+     auch keine Punkte - trotzdem tippen, dann Eingabetaste.
+   - Das Ganze kann einige Minuten dauern (beim ersten Mal auch laenger).
+   - Am Ende fragt das Fenster "Probedruck jetzt senden? [j/N]".
+     Mit "j" und Eingabetaste kommt eine Testseite aus dem Drucker.
+
+4) DRUCKEN (ab jetzt immer so)
+   In einem beliebigen Programm: Taste ⌘ und P gleichzeitig.
+   Unten links im Druckfenster das Menue "PDF" oeffnen und
+   "An Dell C1660w senden" waehlen. Oben rechts erscheint eine Meldung.
+   (Einstellungen wie Duplex oder Fach gibt es hier nicht; gedruckt wird
+   farbig auf A4.)
+
+WENN ETWAS NICHT KLAPPT
+   "Drucker nicht erreichbar":
+     - Drucker einschalten und 1-2 Minuten warten (er schlaeft sonst).
+     - Sind Mac und Drucker im selben WLAN?
+     - Danach noch einmal drucken.
+   Eintrag "An Dell C1660w senden" fehlt im PDF-Menue:
+     - Das Programm, aus dem Sie drucken, einmal beenden und neu oeffnen.
+   Sonst: Datei "dellprint-install.log" (Ordner Library > Logs in Ihrem
+   Benutzerordner) oder einen Screenshot des Terminal-Fensters weitergeben.
+
+DEINSTALLIEREN
+   "Deinstallieren.command" ausfuehren (wie in Schritt 2).

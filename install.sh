@@ -15,21 +15,33 @@ CONFDIR="$HOME/.config/dellprint"
 PDFSVC="$HOME/Library/PDF Services"
 APP="$PDFSVC/An Dell C1660w senden.app"
 
+# Drucker-Adresse fuer eine NEUE Config (leer = Bonjour-Suche). Beispiel:
+#   DELLPRINT_HOST=DELL0C56BA.local ./install.sh
+HOST_VALUE="${DELLPRINT_HOST:-}"
+
 # Ghostscript: Pfad ueber 'brew --prefix' ermitteln
 GS=""
 if command -v brew >/dev/null 2>&1; then
     GS="$(brew --prefix)/bin/gs"
-elif [ -x /opt/homebrew/bin/gs ]; then
-    GS=/opt/homebrew/bin/gs
+fi
+if [ -z "$GS" ] || [ ! -x "$GS" ]; then
+    for c in /opt/homebrew/bin/gs /usr/local/bin/gs; do
+        [ -x "$c" ] && { GS="$c"; break; }
+    done
 fi
 if [ -z "$GS" ] || [ ! -x "$GS" ]; then
     echo "Ghostscript fehlt. Bitte 'brew install ghostscript' ausfuehren." >&2
     exit 1
 fi
 
-# Binaries bauen, falls noetig
+# Binaries aus bin/ nehmen; nur im Projekt (mit build.sh) bei Bedarf bauen
 if [ ! -x "$ROOT/bin/foo2hbpl1" ] || [ ! -x "$ROOT/bin/hbpldecode" ]; then
-    "$ROOT/build.sh"
+    if [ -x "$ROOT/build.sh" ]; then
+        "$ROOT/build.sh"
+    else
+        echo "bin/foo2hbpl1 bzw. bin/hbpldecode fehlen im Paket." >&2
+        exit 1
+    fi
 fi
 
 mkdir -p "$BINDIR" "$SHAREDIR" "$CONFDIR" "$PDFSVC"
@@ -39,12 +51,12 @@ sed "s|@DELLPRINT@|$BINDIR/dellprint|" "$ROOT/pdf-service/an-dell-c1660w-senden.
     >"$BINDIR/dellprint-pdfservice"
 chmod 755 "$BINDIR/dellprint-pdfservice"
 
-# Config nur anlegen, wenn es noch keine gibt (HOST bleibt leer -> Bonjour)
+# Config nur anlegen, wenn es noch keine gibt (HOST leer -> Bonjour, sonst DELLPRINT_HOST)
 if [ ! -e "$CONFDIR/config" ]; then
     cat >"$CONFDIR/config" <<CFG
 # dellprint-Konfiguration (wird von dellprint als Shell-Datei gelesen)
 # Drucker-Adresse; leer lassen = per Bonjour suchen
-HOST=
+HOST=$HOST_VALUE
 PAPER=a4
 GS=$GS
 FOO2HBPL1=$SHAREDIR/foo2hbpl1
@@ -78,5 +90,5 @@ echo "  $BINDIR/dellprint"
 echo "  $BINDIR/dellprint-pdfservice"
 echo "  $SHAREDIR/{foo2hbpl1,hbpldecode}"
 echo "  $APP"
-case ":$PATH:" in *":$BINDIR:"*) ;; *) echo "Hinweis: $BINDIR ist nicht im PATH (z. B. in ~/.zshrc ergaenzen)." ;; esac
+[ -n "${DELLPRINT_NO_PATH_HINT:-}" ] || case ":$PATH:" in *":$BINDIR:"*) ;; *) echo "Hinweis: $BINDIR ist nicht im PATH (z. B. in ~/.zshrc ergaenzen)." ;; esac
 echo "Test: dellprint --help"

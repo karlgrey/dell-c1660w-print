@@ -128,6 +128,33 @@ werden dadurch ins Hochformat gedreht.
 * Nur dieser Mac (Skripte und Binaries liegen im Benutzerverzeichnis). Kein iPhone/iPad.
 * Farbe ohne Kalibrierung, siehe oben.
 
+## Weitergabe an einen anderen Mac
+
+`./make-dist.sh` baut `dist/dellprint-installer.zip` (`dist/` ist nicht im Git). Das
+Paket ist für Nicht-Techniker gedacht und läuft auf Apple Silicon und Intel:
+
+| Inhalt | Zweck |
+|---|---|
+| `Installieren.command` | Doppelklick-Installer: prüft macOS/Architektur, installiert bei Bedarf Homebrew (offizieller Installer, fragt nach dem Anmeldepasswort) und `ghostscript`, ruft `install.sh` auf (Config mit `HOST=DELL0C56BA.local`, überschreibbar über `DELLPRINT_HOST`), Selbsttest per `--dry-run`, optionaler Probedruck (Frage `[j/N]`). Idempotent; Protokoll in `~/Library/Logs/dellprint-install.log`. Trägt `brew shellenv` und `~/.local/bin` in `~/.zprofile` ein. |
+| `Deinstallieren.command` | ruft `uninstall.sh` auf (Homebrew/Ghostscript bleiben; Config und Protokoll ebenfalls) |
+| `ANLEITUNG.txt` | Anleitung für die Benutzerin (deutsch, eine Seite) |
+| `dellprint`, `install.sh`, `uninstall.sh`, `pdf-service/`, `licenses/`, `README.md` | wie im Projekt |
+| `bin/foo2hbpl1`, `bin/hbpldecode` | **Universal-Binaries** (arm64 + x86_64), gebaut mit `./build.sh --universal` |
+| `test/testseite.pdf` | Testseite (2 Seiten) für Selbsttest und Probedruck |
+
+`bin/` im Projekt bleibt der reine arm64-Build für diesen Mac (`./build.sh` ohne Option);
+die Universal-Binaries entstehen nur im Paket. Das Zip enthält keine Symlinks, Skripte
+sind ausführbar (`zip -X`, Rechte bleiben erhalten).
+
+**Gatekeeper:** Das Paket ist weder signiert noch notarisiert. Beim ersten Start muss
+`Installieren.command` per Rechtsklick → *Öffnen* gestartet werden; blockiert macOS
+trotzdem: Systemeinstellungen → Datenschutz & Sicherheit → *Dennoch öffnen*. Der
+Installer entfernt danach die Quarantäne-Markierung vom Paketordner. Die Binaries
+tragen nur die Ad-hoc-Signatur des Linkers.
+
+**Ungeprüft:** Lauf auf macOS 27 und auf Intel-Macs, echte Homebrew-Erstinstallation
+(nur mit Ersatz-Installer getestet), Ghostscript-Bottle bzw. Quellbau unter macOS 27.
+
 ## Tests
 
 `tests/run-tests.sh` (kein echter Drucker, Senden nur gegen `127.0.0.1`; benötigt
