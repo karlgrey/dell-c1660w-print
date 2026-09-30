@@ -57,6 +57,10 @@ Farbmodus und 600 dpi. Weicht etwas ab, bricht `dellprint` mit Exit-Code 1 ab.
 Ist weder `--host` noch `HOST` gesetzt, sucht `dellprint` per Bonjour
 (`_pdl-datastream._tcp`, Name beginnt mit „Dell C1660w Color Printer") und löst die
 Adresse auf. Schlägt das fehl, kommt eine deutsche Fehlermeldung.
+Empfohlen ist `HOST=DELL0C56BA.local` (Bonjour-Hostname des Druckers, unabhängig von
+der IP-Vergabe der Fritzbox); dann entfällt die Suche. Aus dem Ruhezustand antwortet
+der Drucker erst nach einigen Sekunden, `dellprint` prüft die Erreichbarkeit deshalb
+bis zu viermal.
 
 **Protokoll:** `~/Library/Logs/dellprint.log` (Zeit, Datei, Seiten, Ziel, Ergebnis).
 
@@ -73,7 +77,8 @@ dort wegen der Sandbox nicht mehr zuverlässig; als robust gilt eine **Automator
 AppleScript-App**, die die PDF als Dokument bekommt. Deshalb installiert
 `install.sh` eine per `osacompile` gebaute Droplet-App, die
 `dellprint-pdfservice` (das 3-Argument-Skript aus `pdf-service/`) aufruft.
-*Stand der Recherche: nur Websuche, ein echter Test im Druckdialog war hier nicht möglich.*
+**Getestet 30.09.2026 auf macOS 26.6.2:** Eintrag erscheint im PDF-Menü, Druck läuft
+durch, Farben und Ränder auf dem echten Gerät in Ordnung.
 
 ## Woher stammen die Parameter?
 
