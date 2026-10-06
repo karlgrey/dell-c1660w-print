@@ -294,7 +294,8 @@ function Convert-One([string]$pdf, $o) {
 
         # ---- Prüfen mit hbpldecode ----
         $dec = Join-Path $tmp "decode.txt"
-        $rcDec = Run-Cmd $tmp @((Q $o.Dec) + " <" + (Q $stream) + " >" + (Q $dec) + " 2>&1", "exit /b %errorlevel%")
+        $decLine = (Q $o.Dec) + " <" + (Q $stream) + " >" + (Q $dec) + " 2>&1"
+        $rcDec = Run-Cmd $tmp @($decLine, "exit /b %errorlevel%")
         if ($rcDec -ne 0) {
             $dd = ""
             if (Test-Path -LiteralPath $dec) { $dd = (([System.IO.File]::ReadAllLines($dec) | Select-Object -Last 2) -join " ") }
