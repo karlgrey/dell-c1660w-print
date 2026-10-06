@@ -12,6 +12,7 @@
 # System.Net.Sockets.TcpClient mit Stream-Kopie aus der Datei.
 #
 # Abweichungen vom Mac-Programm (alle bewusst):
+#  - Arbeitsordner bei Sonderzeichen im TEMP-Pfad: C:\Users\Public\dellprint-tmp.
 #  - Keine Bonjour-Suche (Nicht-Ziel v1): ohne Host kommt eine Fehlermeldung.
 #  - Mehrere PDFs nacheinander (Senden an mit Mehrfachauswahl); Exit 1, wenn
 #    eine fehlschlug.
@@ -238,7 +239,14 @@ function Convert-One([string]$pdf, $o) {
         Fail "Das ist keine PDF-Datei: $pdf"
     }
 
-    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("dellprint." + [guid]::NewGuid().ToString("N").Substring(0, 8))
+    # Arbeitsordner: cmd.exe und Ghostscript sollen nur ASCII-Pfade sehen.  Enthält TEMP
+    # Umlaute/Sonderzeichen (Benutzername "Jürgen"), weichen wir auf C:\Users\Public aus.
+    $base = [System.IO.Path]::GetTempPath()
+    if ($base -match '[^\x20-\x7E]' -and $env:PUBLIC -and (Test-Path -LiteralPath $env:PUBLIC)) {
+        $base = Join-Path $env:PUBLIC "dellprint-tmp"
+        New-Item -ItemType Directory -Path $base -Force | Out-Null
+    }
+    $tmp = Join-Path $base ("dellprint." + [guid]::NewGuid().ToString("N").Substring(0, 8))
     New-Item -ItemType Directory -Path $tmp -Force | Out-Null
     try {
         $in = Join-Path $tmp "in.pdf"
