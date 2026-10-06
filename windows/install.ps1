@@ -125,13 +125,15 @@ if ($gs -and -not $env:DELLPRINT_FORCE_GS_INSTALL) {
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
         $ProgressPreference = 'SilentlyContinue'
-        try { Invoke-WebRequest -Uri $GS_URL -OutFile $dl -UseBasicParsing }
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        try { Invoke-WebRequest -Uri $GS_URL -OutFile $dl -UseBasicParsing -TimeoutSec 600 }
         catch {
             Fail-Install "Ghostscript konnte nicht heruntergeladen werden: $($_.Exception.Message)" @(
                 "Ist der Computer mit dem Internet verbunden?",
                 "Alternativ Ghostscript (64 Bit) von https://ghostscript.com/releases/gsdnld.html",
                 "installieren und Installieren.cmd danach noch einmal starten.")
         }
+        Say "Download fertig ($([int]((Get-Item -LiteralPath $dl).Length / 1MB)) MB, $([int]$sw.Elapsed.TotalSeconds) s)."
         $hash = (Get-FileHash -LiteralPath $dl -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($hash -ne $GS_SHA256.ToLowerInvariant()) {
             Remove-Item -LiteralPath $dl -Force -ErrorAction SilentlyContinue
@@ -142,8 +144,13 @@ if ($gs -and -not $env:DELLPRINT_FORCE_GS_INSTALL) {
         Say "Prüfsumme in Ordnung. Installiere Ghostscript (Windows fragt ggf. nach der Erlaubnis - bitte mit 'Ja' bestätigen) ..."
         $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         try {
-            if ($isAdmin) { $proc = Start-Process -FilePath $dl -ArgumentList "/S" -Wait -PassThru }
-            else { $proc = Start-Process -FilePath $dl -ArgumentList "/S" -Verb RunAs -Wait -PassThru }
+            # Ohne -Wait starten und selbst warten (max. 10 Minuten), damit nichts endlos hängt
+            if ($isAdmin) { $proc = Start-Process -FilePath $dl -ArgumentList "/S" -PassThru }
+            else { $proc = Start-Process -FilePath $dl -ArgumentList "/S" -Verb RunAs -PassThru }
+            if (-not $proc.WaitForExit(600000)) {
+                try { $proc.Kill() } catch { }
+                Fail-Install "Die Ghostscript-Installation hat nach 10 Minuten nicht geendet." @()
+            }
         } catch {
             Fail-Install "Die Ghostscript-Installation wurde nicht gestartet bzw. abgelehnt: $($_.Exception.Message)" @(
                 "Bitte Installieren.cmd noch einmal starten und die Windows-Abfrage mit 'Ja' bestätigen.")
