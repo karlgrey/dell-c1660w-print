@@ -16,7 +16,7 @@ PDFSVC="$HOME/Library/PDF Services"
 APP="$PDFSVC/An Dell C1660w senden.app"
 
 # Drucker-Adresse fuer eine NEUE Config (leer = Bonjour-Suche). Beispiel:
-#   DELLPRINT_HOST=DELL0C56BA.local ./install.sh
+#   DELLPRINT_HOST=DELLxxxxxx.local ./install.sh
 HOST_VALUE="${DELLPRINT_HOST:-}"
 
 # Ghostscript: Pfad ueber 'brew --prefix' ermitteln

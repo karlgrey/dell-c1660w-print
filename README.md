@@ -57,8 +57,9 @@ Farbmodus und 600 dpi. Weicht etwas ab, bricht `dellprint` mit Exit-Code 1 ab.
 Ist weder `--host` noch `HOST` gesetzt, sucht `dellprint` per Bonjour
 (`_pdl-datastream._tcp`, Name beginnt mit „Dell C1660w Color Printer") und löst die
 Adresse auf. Schlägt das fehl, kommt eine deutsche Fehlermeldung.
-Empfohlen ist `HOST=DELL0C56BA.local` (Bonjour-Hostname des Druckers, unabhängig von
-der IP-Vergabe der Fritzbox); dann entfällt die Suche. Aus dem Ruhezustand antwortet
+Empfohlen ist `HOST=DELLxxxxxx.local` (Bonjour-Hostname des Druckers, die letzten
+sechs Stellen der MAC-Adresse; unabhängig von der IP-Vergabe des Routers); dann entfällt
+die Suche. Aus dem Ruhezustand antwortet
 der Drucker erst nach einigen Sekunden, `dellprint` prüft die Erreichbarkeit deshalb
 bis zu viermal.
 
@@ -135,7 +136,7 @@ Paket ist für Nicht-Techniker gedacht und läuft auf Apple Silicon und Intel:
 
 | Inhalt | Zweck |
 |---|---|
-| `Installieren.command` | Doppelklick-Installer: prüft macOS/Architektur, installiert bei Bedarf Homebrew (offizieller Installer, fragt nach dem Anmeldepasswort) und `ghostscript`, ruft `install.sh` auf (Config mit `HOST=DELL0C56BA.local`, überschreibbar über `DELLPRINT_HOST`), Selbsttest per `--dry-run`, optionaler Probedruck (Frage `[j/N]`). Idempotent; Protokoll in `~/Library/Logs/dellprint-install.log`. Trägt `brew shellenv` und `~/.local/bin` in `~/.zprofile` ein. |
+| `Installieren.command` | Doppelklick-Installer: prüft macOS/Architektur, installiert bei Bedarf Homebrew (offizieller Installer, fragt nach dem Anmeldepasswort) und `ghostscript`, ruft `install.sh` auf (Config mit `HOST` aus `DELLPRINT_HOST`, leer = Bonjour-Suche), Selbsttest per `--dry-run`, optionaler Probedruck (Frage `[j/N]`). Idempotent; Protokoll in `~/Library/Logs/dellprint-install.log`. Trägt `brew shellenv` und `~/.local/bin` in `~/.zprofile` ein. |
 | `Deinstallieren.command` | ruft `uninstall.sh` auf (Homebrew/Ghostscript bleiben; Config und Protokoll ebenfalls) |
 | `ANLEITUNG.txt` | Anleitung für die Benutzerin (deutsch, eine Seite) |
 | `dellprint`, `install.sh`, `uninstall.sh`, `pdf-service/`, `licenses/`, `README.md` | wie im Projekt |

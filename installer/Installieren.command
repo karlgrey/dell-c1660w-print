@@ -15,7 +15,7 @@ mkdir -p "$HOME/Library/Logs"
 exec > >(tee -a "$LOG") 2>&1
 
 export DELLPRINT_NO_PATH_HINT=1   # PATH tragen wir unten selbst in ~/.zprofile ein
-export DELLPRINT_HOST="${DELLPRINT_HOST:-DELL0C56BA.local}"
+export DELLPRINT_HOST="${DELLPRINT_HOST:-}"   # leer = Drucker per Bonjour suchen
 BREW_CANDIDATES="${DELLPRINT_BREW_CANDIDATES:-/opt/homebrew/bin/brew /usr/local/bin/brew}"
 BREW_URL="https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
 DELLPRINT_BIN="$HOME/.local/bin/dellprint"
