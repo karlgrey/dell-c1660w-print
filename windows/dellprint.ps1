@@ -295,7 +295,11 @@ function Convert-One([string]$pdf, $o) {
         # ---- Prüfen mit hbpldecode ----
         $dec = Join-Path $tmp "decode.txt"
         $rcDec = Run-Cmd $tmp @((Q $o.Dec) + " <" + (Q $stream) + " >" + (Q $dec) + " 2>&1", "exit /b %errorlevel%")
-        if ($rcDec -ne 0) { Fail "hbpldecode konnte den Datenstrom nicht lesen." }
+        if ($rcDec -ne 0) {
+            $dd = ""
+            if (Test-Path -LiteralPath $dec) { $dd = (([System.IO.File]::ReadAllLines($dec) | Select-Object -Last 2) -join " ") }
+            Fail "hbpldecode konnte den Datenstrom nicht lesen (Exit-Code $rcDec): $dd"
+        }
         $dl = [System.IO.File]::ReadAllLines($dec)
         $dPages = @($dl | Where-Object { $_ -match 'image found' }).Count
         $dPaper = (@($dl | ForEach-Object { if ($_ -match '\[paper=([^\]]*)\]') { $Matches[1] } } | Sort-Object -Unique) -join " ")
