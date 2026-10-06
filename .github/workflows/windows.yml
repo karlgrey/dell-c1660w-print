@@ -17,11 +17,11 @@ jobs:
         run: GS=gs tests/windows/make-reference.sh ref
       - name: Paket bauen (dellprint-windows.zip)
         run: GS=gs ./make-dist-windows.sh
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: windows-dist
           path: dist/dellprint-windows.zip
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: windows-ref
           path: ref/
@@ -31,11 +31,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           name: windows-dist
           path: dl
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           name: windows-ref
           path: ref
