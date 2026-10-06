@@ -170,10 +170,15 @@ wird einmal eingetragen), kein Duplex/Fach, kein ARM64. Der Mac-Teil bleibt unve
 
 **Installation (Nicht-Techniker):** `dellprint-windows.zip` entpacken, `Installieren.cmd`
 doppelklicken (Anleitung: `ANLEITUNG.txt` im Paket). Der Installer installiert
-Ghostscript bei Bedarf per `winget` (UAC-Abfrage), kopiert dellprint nach
+Ghostscript bei Bedarf (offizieller Installer aus dem GitHub-Release
+`ArtifexSoftware/ghostpdl-downloads`, auf Version 10.08.0 und SHA256 gepinnt, still installiert,
+UAC-Abfrage; kein winget – die Paket-ID existiert dort nicht mehr), kopiert dellprint nach
 `%LOCALAPPDATA%\dellprint\`, legt `%APPDATA%\dellprint\config.txt` an (fragt die
 Drucker-Adresse; `DELLPRINT_HOST` überspringt die Frage), trägt „Senden an → Dell C1660w“
 ein, macht einen Selbsttest (`-DryRun`) und bietet einen Probedruck an.
+**Ghostscript aktualisieren:** `gh api repos/ArtifexSoftware/ghostpdl-downloads/releases/latest`
+liefert Tag und Asset-URL (`gs<ver>w64.exe`); SHA256 per `Get-FileHash`/`shasum -a 256`; dann
+`$GS_VERSION`, `$GS_URL`, `$GS_SHA256` im Kopf von `windows/install.ps1` anpassen.
 **SmartScreen:** Das Paket ist nicht signiert. Beim ersten Start „Weitere Informationen →
 Trotzdem ausführen“.
 
@@ -207,7 +212,7 @@ PowerShell 5.1, Ghostscript per `choco`) führt `tests/windows/run-tests.ps1` au
 einen lokalen Listener, Mehrfachdateien, Config-Vorrang, Protokoll, Installer/Deinstaller).
 
 **Ungeprüft:** Lauf auf einem echten Windows-11-Rechner mit echtem Drucker,
-`winget`-Verfügbarkeit, Auflösung von `DELLxxxxxx.local` per mDNS, Farbwiedergabe.
+Download von github.com durch Firmen-Proxy/Virenscanner, Auflösung von `DELLxxxxxx.local` per mDNS, Farbwiedergabe.
 
 ## Tests
 

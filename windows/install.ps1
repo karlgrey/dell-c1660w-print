@@ -2,12 +2,24 @@
 #   %LOCALAPPDATA%\dellprint\   Programm (dellprint.ps1, sendto.cmd, bin\, test\, licenses\)
 #   %APPDATA%\dellprint\config.txt   Einstellungen (wird nie überschrieben)
 #   %APPDATA%\Microsoft\Windows\SendTo\Dell C1660w.lnk   "Senden an"-Eintrag
-# Einzige Aktion mit Administrator-Rechten: die Installation von Ghostscript
-# durch winget (Windows fragt selbst per UAC).
+# Einzige Aktion mit Administrator-Rechten: die stille Installation von
+# Ghostscript (Windows fragt selbst per UAC).  winget wird NICHT benutzt (die
+# Paket-ID ArtifexSoftware.GhostScript gibt es dort nicht mehr); stattdessen der
+# offizielle NSIS-Installer aus dem GitHub-Release ArtifexSoftware/ghostpdl-downloads,
+# gepinnt auf Version + SHA256 (Konstanten unten).
+#
+# Ghostscript-Version aktualisieren:
+#   gh api repos/ArtifexSoftware/ghostpdl-downloads/releases/latest --jq '.tag_name, (.assets[]|select(.name|test("w64.exe$"))|.browser_download_url)'
+#   -> Tag (z. B. gs10080), URL ...gs10080w64.exe; SHA256 des Downloads:
+#   curl -sL <URL> | shasum -a 256   (oder Get-FileHash).  Dann $GS_VERSION,
+#   $GS_URL, $GS_SHA256 und $GS_SIZE unten sowie die README anpassen.
 #
 # Test-Haken (nur für Entwickler/CI):
 #   DELLPRINT_HOST             Drucker-Adresse, überspringt die Nachfrage
 #   DELLPRINT_NONINTERACTIVE   1 = keine Nachfragen, kein Probedruck
+#   DELLPRINT_GS_URL / DELLPRINT_GS_SHA256   Download-URL bzw. Soll-Hash überschreiben
+#   DELLPRINT_FORCE_GS_INSTALL 1 = Ghostscript auch dann herunterladen/installieren,
+#                              wenn schon eins gefunden wird (nur Tests)
 #
 # Datei als UTF-8 MIT BOM speichern (Windows PowerShell 5.1).
 [CmdletBinding()]
@@ -15,6 +27,13 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $pkg = $PSScriptRoot
+# Gepinnter Ghostscript-Installer (siehe Kopf)
+$GS_VERSION = "10.08.0"
+$GS_URL = "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10080/gs10080w64.exe"
+$GS_SHA256 = "52a91b8bf09298788d7a57b9206127026c23eacd75405f0a131e26dc381dce50"
+$GS_SIZE = 65093120
+if ($env:DELLPRINT_GS_URL) { $GS_URL = $env:DELLPRINT_GS_URL }
+if ($env:DELLPRINT_GS_SHA256) { $GS_SHA256 = $env:DELLPRINT_GS_SHA256 }
 $progDir = Join-Path $env:LOCALAPPDATA "dellprint"
 $confDir = Join-Path $env:APPDATA "dellprint"
 $confFile = Join-Path $confDir "config.txt"
@@ -98,21 +117,44 @@ function Find-Gs {
     return $null
 }
 $gs = Find-Gs
-if ($gs) {
+if ($gs -and -not $env:DELLPRINT_FORCE_GS_INSTALL) {
     Say "Ghostscript vorhanden: $gs"
 } else {
-    $winget = Get-Command winget.exe -CommandType Application -ErrorAction SilentlyContinue
-    if (-not $winget) {
-        Fail-Install "Ghostscript fehlt, und winget ist nicht verfügbar." @(
-            "Bitte Ghostscript (64 Bit) von https://ghostscript.com/releases/gsdnld.html installieren",
-            "und Installieren.cmd danach noch einmal starten.")
+    Say "Lade Ghostscript $GS_VERSION herunter (ca. 62 MB) ..."
+    $dl = Join-Path ([System.IO.Path]::GetTempPath()) "gs-installer-$([guid]::NewGuid().ToString('N').Substring(0,8)).exe"
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $ProgressPreference = 'SilentlyContinue'
+        try { Invoke-WebRequest -Uri $GS_URL -OutFile $dl -UseBasicParsing }
+        catch {
+            Fail-Install "Ghostscript konnte nicht heruntergeladen werden: $($_.Exception.Message)" @(
+                "Ist der Computer mit dem Internet verbunden?",
+                "Alternativ Ghostscript (64 Bit) von https://ghostscript.com/releases/gsdnld.html",
+                "installieren und Installieren.cmd danach noch einmal starten.")
+        }
+        $hash = (Get-FileHash -LiteralPath $dl -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($hash -ne $GS_SHA256.ToLowerInvariant()) {
+            Remove-Item -LiteralPath $dl -Force -ErrorAction SilentlyContinue
+            Fail-Install "Die Prüfsumme des Ghostscript-Downloads stimmt nicht (erhalten $hash, erwartet $GS_SHA256)." @(
+                "Der Download wurde gelöscht und NICHT ausgeführt.",
+                "Bitte später noch einmal versuchen oder Ghostscript manuell installieren.")
+        }
+        Say "Prüfsumme in Ordnung. Installiere Ghostscript (Windows fragt ggf. nach der Erlaubnis - bitte mit 'Ja' bestätigen) ..."
+        $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        try {
+            if ($isAdmin) { $proc = Start-Process -FilePath $dl -ArgumentList "/S" -Wait -PassThru }
+            else { $proc = Start-Process -FilePath $dl -ArgumentList "/S" -Verb RunAs -Wait -PassThru }
+        } catch {
+            Fail-Install "Die Ghostscript-Installation wurde nicht gestartet bzw. abgelehnt: $($_.Exception.Message)" @(
+                "Bitte Installieren.cmd noch einmal starten und die Windows-Abfrage mit 'Ja' bestätigen.")
+        }
+        $wrc = $proc.ExitCode
+    } finally {
+        Remove-Item -LiteralPath $dl -Force -ErrorAction SilentlyContinue
     }
-    Say "Installiere Ghostscript per winget (Windows fragt nach der Erlaubnis - bitte mit 'Ja' bestätigen) ..."
-    & winget.exe install -e --id ArtifexSoftware.GhostScript --accept-package-agreements --accept-source-agreements
-    $wrc = $LASTEXITCODE
     $gs = Find-Gs
     if (-not $gs) {
-        Fail-Install "Ghostscript konnte nicht installiert werden (winget Exit-Code $wrc)." @(
+        Fail-Install "Ghostscript wurde nicht gefunden (Installer-Exit-Code $wrc)." @(
             "Bitte Ghostscript (64 Bit) von https://ghostscript.com/releases/gsdnld.html installieren",
             "und Installieren.cmd danach noch einmal starten.")
     }
