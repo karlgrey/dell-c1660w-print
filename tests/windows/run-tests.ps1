@@ -223,6 +223,28 @@ Check "Kommandozeile schlägt Config (Host + Papier)" ($r.Rc -eq 0 -and $r.Out -
 $r = Run-DP @("-DryRun", $pdf)
 Check "Config-Papier gilt ohne Kommandozeile" ($r.Rc -eq 0 -and $r.Out -match 'Papier=Letter')
 
+Write-Host "== Reparierbares PDF (gs-Warnungen auf stderr) =="
+$bytes = [System.IO.File]::ReadAllBytes($pdf)
+$shift = New-Object byte[] ($bytes.Length + 12)
+$pre = [System.Text.Encoding]::ASCII.GetBytes("%junk-junk-`n")
+[Array]::Copy($pre, 0, $shift, 0, 12); [Array]::Copy($bytes, 0, $shift, 12, $bytes.Length)
+$repair = Join-Path $T "repariert.pdf"; [System.IO.File]::WriteAllBytes($repair, $shift)
+Write-Config "PAPER=a4`r`n"
+$r = Run-DP @("-DryRun", $repair)
+Check "PDF mit falschen xref-Offsets wird repariert und verarbeitet (rc=0, 2 Seiten)" ($r.Rc -eq 0 -and $r.Out -match 'Seiten=2')
+Write-Config "HOST=127.0.0.1`r`nPORT=19100`r`n"
+
+Write-Host "== TEMP mit Umlaut und Leerzeichen =="
+$oldTmp = @{ A = $env:TEMP; B = $env:TMP }
+$odd = Join-Path $T "Jürgen Ä"; New-Item -ItemType Directory -Path $odd -Force | Out-Null
+$env:TEMP = $odd; $env:TMP = $odd
+$recv7 = Join-Path $T "recv7.bin"
+$p = Start-Listener 19100 2 $recv7
+$r = Run-DP @($pdf)
+Stop-Listener $p
+Check "Farbe senden mit TEMP='$odd' (rc=0, Bytes wie Referenz)" ($r.Rc -eq 0 -and (Body-Hash $recv7) -eq (Body-Hash $color))
+$env:TEMP = $oldTmp.A; $env:TMP = $oldTmp.B
+
 Write-Host "== Protokoll =="
 $log = Get-Content $env:DELLPRINT_LOG
 Check "Log-Zeile OK gesendet im Tab-Format" (@($log | Where-Object { $_ -match "^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d`tdatei=.*`tseiten=2`tziel=127\.0\.0\.1:19100`tergebnis=OK gesendet" }).Count -ge 1)
@@ -280,6 +302,13 @@ Check "uninstall.ps1 rc=0, Verknüpfung entfernt" ($LASTEXITCODE -eq 0 -and -not
 Check "Programmdateien entfernt, Config + Protokoll bleiben" (-not (Test-Path (Join-Path $inst "dellprint.ps1")) -and -not (Test-Path (Join-Path $inst "bin")) -and (Test-Path $cfgFile) -and (Test-Path (Join-Path $inst "install.log")))
 $uo = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Pkg "uninstall.ps1") -Purge 2>&1 | Out-String
 Check "uninstall.ps1 -Purge löscht Config und Ordner" ($LASTEXITCODE -eq 0 -and -not (Test-Path $cfgFile) -and -not (Test-Path $inst))
+# Ghostscript-Download mit falscher Prüfsumme -> Abbruch (Installation wird erzwungen)
+$env:DELLPRINT_FORCE_GS_INSTALL = "1"
+$env:DELLPRINT_GS_SHA256 = "0000000000000000000000000000000000000000000000000000000000000000"
+$bo = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Pkg "install.ps1") 2>&1 | Out-String
+Check "falscher Ghostscript-Hash -> rc=1 und Meldung zur Prüfsumme" ($LASTEXITCODE -ne 0 -and $bo -match 'Prüfsumme des Ghostscript-Downloads stimmt nicht' -and $bo -notmatch 'Ghostscript installiert:')
+Check "Download nach Hash-Fehler gelöscht" (@(Get-ChildItem ([System.IO.Path]::GetTempPath()) -Filter "gs-installer-*.exe" -ErrorAction SilentlyContinue).Count -eq 0)
+Remove-Item Env:DELLPRINT_FORCE_GS_INSTALL, Env:DELLPRINT_GS_SHA256 -ErrorAction SilentlyContinue
 $env:APPDATA = $saved.A; $env:LOCALAPPDATA = $saved.L
 Remove-Item Env:DELLPRINT_HOST, Env:DELLPRINT_NONINTERACTIVE -ErrorAction SilentlyContinue
 

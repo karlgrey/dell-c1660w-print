@@ -8,7 +8,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Werkzeuge installieren (mingw-w64, Ghostscript)
         run: sudo apt-get update && sudo apt-get install -y mingw-w64 ghostscript
       - name: Windows-Binaries bauen (Cross-Build)
@@ -17,11 +17,11 @@ jobs:
         run: GS=gs tests/windows/make-reference.sh ref
       - name: Paket bauen (dellprint-windows.zip)
         run: GS=gs ./make-dist-windows.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: windows-dist
           path: dist/dellprint-windows.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: windows-ref
           path: ref/
@@ -30,25 +30,30 @@ jobs:
     needs: build
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
         with:
           name: windows-dist
           path: dl
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: windows-ref
           path: ref
-      - name: Ghostscript installieren (choco)
-        shell: powershell
-        run: |
-          choco install ghostscript -y --no-progress
-          Get-ChildItem "C:\Program Files\gs\gs*\bin\gswin64c.exe" | ForEach-Object FullName
       - name: Paket entpacken
         shell: powershell
         run: |
           Expand-Archive -Path dl\dellprint-windows.zip -DestinationPath pkg
           Get-ChildItem pkg -Recurse | Select-Object -ExpandProperty FullName
+      - name: Ghostscript über den echten Installer installieren (Download + SHA256 + still)
+        shell: powershell
+        run: |
+          Get-Command gswin64c.exe -ErrorAction SilentlyContinue
+          if (Test-Path "C:\Program Files\gs") { throw "Ghostscript ist schon vorhanden - Test sinnlos" }
+          $env:DELLPRINT_HOST = "127.0.0.1"; $env:DELLPRINT_NONINTERACTIVE = "1"
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File pkg\dellprint-windows\install.ps1
+          if ($LASTEXITCODE -ne 0) { throw "install.ps1 fehlgeschlagen" }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File pkg\dellprint-windows\uninstall.ps1 -Purge
+          Get-ChildItem "C:\Program Files\gs\gs*\bin\gswin64c.exe" | ForEach-Object FullName
       - name: Tests (Windows PowerShell 5.1)
         shell: powershell
         run: |
