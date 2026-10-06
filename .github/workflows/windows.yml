@@ -1,0 +1,57 @@
+name: windows
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Werkzeuge installieren (mingw-w64, Ghostscript)
+        run: sudo apt-get update && sudo apt-get install -y mingw-w64 ghostscript
+      - name: Windows-Binaries bauen (Cross-Build)
+        run: ./build-windows.sh
+      - name: Referenzdaten erzeugen (nativer Linux-Encoder)
+        run: GS=gs tests/windows/make-reference.sh ref
+      - name: Paket bauen (dellprint-windows.zip)
+        run: GS=gs ./make-dist-windows.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: dist/dellprint-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-ref
+          path: ref/
+
+  test:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-dist
+          path: dl
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-ref
+          path: ref
+      - name: Ghostscript installieren (choco)
+        shell: powershell
+        run: |
+          choco install ghostscript -y --no-progress
+          Get-ChildItem "C:\Program Files\gs\gs*\bin\gswin64c.exe" | ForEach-Object FullName
+      - name: Paket entpacken
+        shell: powershell
+        run: |
+          Expand-Archive -Path dl\dellprint-windows.zip -DestinationPath pkg
+          Get-ChildItem pkg -Recurse | Select-Object -ExpandProperty FullName
+      - name: Tests (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          $PSVersionTable.PSVersion
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests\windows\run-tests.ps1 -Pkg pkg\dellprint-windows -Ref ref
+          exit $LASTEXITCODE
