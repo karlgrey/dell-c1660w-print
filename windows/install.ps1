@@ -3,7 +3,8 @@
 #   %APPDATA%\dellprint\config.txt   Einstellungen (wird nie überschrieben)
 #   %APPDATA%\Microsoft\Windows\SendTo\Dell C1660w.lnk   "Senden an"-Eintrag
 # Einzige Aktion mit Administrator-Rechten: die stille Installation von
-# Ghostscript (Windows fragt selbst per UAC).  winget wird NICHT benutzt (die
+# Ghostscript (Windows fragt selbst per UAC; der Installer ignoriert /S, deshalb
+# bedient gs-install.ps1 sein Fenster automatisch).  winget wird NICHT benutzt (die
 # Paket-ID ArtifexSoftware.GhostScript gibt es dort nicht mehr); stattdessen der
 # offizielle NSIS-Installer aus dem GitHub-Release ArtifexSoftware/ghostpdl-downloads,
 # gepinnt auf Version + SHA256 (Konstanten unten).
@@ -143,15 +144,18 @@ if ($gs -and -not $env:DELLPRINT_FORCE_GS_INSTALL) {
         }
         Say "Prüfsumme in Ordnung. Installiere Ghostscript (Windows fragt ggf. nach der Erlaubnis - bitte mit 'Ja' bestätigen) ..."
         $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        # Der Installer ignoriert /S (zeigt sein Fenster und wartet) - gs-install.ps1 drückt
+        # die Schaltflächen automatisch; es muss mit denselben Rechten laufen wie der Installer.
+        $helper = Join-Path $pkg "gs-install.ps1"
+        $hargs = "-NoProfile -ExecutionPolicy Bypass -File `"$helper`" -Installer `"$dl`" -TimeoutSec 600"
         try {
-            # Ohne -Wait starten und selbst warten (max. 10 Minuten), damit nichts endlos hängt
-            if ($isAdmin) { $proc = Start-Process -FilePath $dl -ArgumentList "/S" -PassThru }
-            else { $proc = Start-Process -FilePath $dl -ArgumentList "/S" -Verb RunAs -PassThru }
-            if (-not $proc.WaitForExit(600000)) {
+            if ($isAdmin) { $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $hargs -PassThru }
+            else { $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $hargs -Verb RunAs -PassThru }
+            if (-not $proc.WaitForExit(720000)) {
                 try { $proc.Kill() } catch { }
-                Fail-Install "Die Ghostscript-Installation hat nach 10 Minuten nicht geendet." @()
+                Fail-Install "Die Ghostscript-Installation hat nach 12 Minuten nicht geendet." @()
             }
-        } catch {
+        } catch [System.ComponentModel.Win32Exception] {
             Fail-Install "Die Ghostscript-Installation wurde nicht gestartet bzw. abgelehnt: $($_.Exception.Message)" @(
                 "Bitte Installieren.cmd noch einmal starten und die Windows-Abfrage mit 'Ja' bestätigen.")
         }

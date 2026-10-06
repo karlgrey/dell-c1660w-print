@@ -25,7 +25,7 @@ crlf() { # $1 = Quelle, $2 = Ziel: Zeilenenden auf CRLF
 }
 
 echo "== Paket zusammenstellen =="
-for f in Installieren.cmd Deinstallieren.cmd sendto.cmd install.ps1 uninstall.ps1 dellprint.ps1 ANLEITUNG.txt; do
+for f in Installieren.cmd Deinstallieren.cmd sendto.cmd install.ps1 gs-install.ps1 uninstall.ps1 dellprint.ps1 ANLEITUNG.txt; do
     crlf "$ROOT/windows/$f" "$STAGE/$f"
 done
 crlf "$ROOT/README.md" "$STAGE/README.md"
@@ -46,13 +46,13 @@ find "$STAGE" \( -name '.DS_Store' -o -name '._*' \) -delete
 (cd "$DIST" && COPYFILE_DISABLE=1 zip -qrX "$NAME.zip" "$NAME")
 
 echo "== Pruefung =="
-for f in Installieren.cmd Deinstallieren.cmd sendto.cmd install.ps1 uninstall.ps1 dellprint.ps1; do
+for f in Installieren.cmd Deinstallieren.cmd sendto.cmd install.ps1 gs-install.ps1 uninstall.ps1 dellprint.ps1; do
     # CRLF durchgehend?
     n_lf="$(grep -c '' "$STAGE/$f")"
     n_crlf="$(grep -c $'\r$' "$STAGE/$f")"
     [ "$n_lf" = "$n_crlf" ] || { echo "FEHLER: $f hat nicht ueberall CRLF" >&2; exit 1; }
 done
-for f in install.ps1 uninstall.ps1 dellprint.ps1 ANLEITUNG.txt; do
+for f in install.ps1 gs-install.ps1 uninstall.ps1 dellprint.ps1 ANLEITUNG.txt; do
     head -c 3 "$STAGE/$f" | od -An -tx1 | grep -qE 'ef +bb +bf' || { echo "FEHLER: $f ohne UTF-8-BOM" >&2; exit 1; }
 done
 unzip -Z "$ZIP" | grep -q '^l' && { echo "FEHLER: Symlink im Zip" >&2; exit 1; }
