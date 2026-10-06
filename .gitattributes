@@ -1,0 +1,5 @@
+# Skripte immer mit LF auschecken (Windows-Runner: sonst CRLF); die CRLF-Wandlung
+# fuer das Windows-Paket macht make-dist-windows.sh.
+*.sh text eol=lf
+*.py text eol=lf
+dellprint text eol=lf
