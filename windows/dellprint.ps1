@@ -246,7 +246,11 @@ function Convert-One([string]$pdf, $o) {
 
         # ---- Seitenzahl ----
         $inPs = ($in -replace '\\', '/') -replace '\(', '\(' -replace '\)', '\)'
-        $cnt = & $o.GS -q -dNODISPLAY -dNOSAFER -c "($inPs) (r) file runpdfbegin pdfpagecount = quit" 2>$null
+        # stderr von gs (Warnungen bei reparierten PDFs) darf unter PS 5.1 keine
+        # NativeCommandError-Ausnahme auslösen -> Fehlerverhalten hier lokal lockern
+        $eapSave = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try { $cnt = & $o.GS -q -dNODISPLAY -dNOSAFER -c "($inPs) (r) file runpdfbegin pdfpagecount = quit" 2>$null }
+        finally { $ErrorActionPreference = $eapSave }
         $last = @($cnt | Where-Object { "$_".Trim() -ne "" } | ForEach-Object { "$_".Trim() }) | Select-Object -Last 1
         if (-not $last -or $last -notmatch '^\d+$') { Fail "PDF nicht lesbar (Seitenzahl nicht ermittelbar): $pdf" }
         $script:PAGES = $last
@@ -398,7 +402,7 @@ try {
     # ---- Werkzeuge finden ----
     $gs = Find-Ghostscript $cfg["GS"]
     if (-not $gs) {
-        Fail "Ghostscript nicht gefunden. Installieren mit 'winget install -e --id ArtifexSoftware.GhostScript' oder GS= in $CONFIG setzen."
+        Fail "Ghostscript nicht gefunden. Bitte Installieren.cmd erneut ausführen (installiert Ghostscript) oder GS= in $CONFIG setzen."
     }
     $foo = $cfg["FOO2HBPL1"]; if (-not $foo) { $foo = Join-Path $PSScriptRoot "bin\foo2hbpl1.exe" }
     $dec = $cfg["HBPLDECODE"]; if (-not $dec) { $dec = Join-Path $PSScriptRoot "bin\hbpldecode.exe" }
@@ -446,7 +450,10 @@ if ($Gui) {
             Add-Type -AssemblyName System.Windows.Forms
             $icon = [System.Windows.Forms.MessageBoxIcon]::Information
             if ($failed -gt 0) { $icon = [System.Windows.Forms.MessageBoxIcon]::Error }
-            [void][System.Windows.Forms.MessageBox]::Show($text, "Dell C1660w", [System.Windows.Forms.MessageBoxButtons]::OK, $icon)
+            # unsichtbares TopMost-Fenster als Besitzer: Meldung erscheint nicht hinter anderen Fenstern
+            $owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }
+            try { [void][System.Windows.Forms.MessageBox]::Show($owner, $text, "Dell C1660w", [System.Windows.Forms.MessageBoxButtons]::OK, $icon) }
+            finally { $owner.Dispose() }
         } catch { }
     }
 }
