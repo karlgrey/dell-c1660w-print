@@ -156,6 +156,59 @@ tragen nur die Ad-hoc-Signatur des Linkers.
 **Ungeprüft:** Lauf auf macOS 27 und auf Intel-Macs, echte Homebrew-Erstinstallation
 (nur mit Ersatz-Installer getestet), Ghostscript-Bottle bzw. Quellbau unter macOS 27.
 
+## Windows 11 (x64)
+
+Zweite Variante für Windows 11 x64 (der Dell-Treiber läuft dort nicht mehr). Gleiche
+Pipeline wie auf dem Mac, mit den gleichen Festwerten, nur mit Windows-Werkzeugen:
+
+```
+PDF --Ghostscript--> Raster 600x600 --foo2hbpl1.exe--> HBPL1 --TCP--> Drucker:9100
+```
+
+Nur PDF, nur x64. Kein virtueller Drucker im Druckdialog, keine Bonjour-Suche (Adresse
+wird einmal eingetragen), kein Duplex/Fach, kein ARM64. Der Mac-Teil bleibt unverändert.
+
+**Installation (Nicht-Techniker):** `dellprint-windows.zip` entpacken, `Installieren.cmd`
+doppelklicken (Anleitung: `ANLEITUNG.txt` im Paket). Der Installer installiert
+Ghostscript bei Bedarf per `winget` (UAC-Abfrage), kopiert dellprint nach
+`%LOCALAPPDATA%\dellprint\`, legt `%APPDATA%\dellprint\config.txt` an (fragt die
+Drucker-Adresse; `DELLPRINT_HOST` überspringt die Frage), trägt „Senden an → Dell C1660w“
+ein, macht einen Selbsttest (`-DryRun`) und bietet einen Probedruck an.
+**SmartScreen:** Das Paket ist nicht signiert. Beim ersten Start „Weitere Informationen →
+Trotzdem ausführen“.
+
+**Benutzung:** PDF rechtsklicken → Senden an → Dell C1660w (Windows 11: zuerst „Weitere
+Optionen anzeigen“). Kommandozeile (Windows PowerShell 5.1):
+
+```powershell
+dellprint.ps1 [-PrinterHost <IP|Name>] [-Mono] [-Paper a4|letter] [-Copies 1-99]
+              [-Out <datei>] [-DryRun] [-Gui] datei.pdf [datei2.pdf ...]
+```
+
+Konfiguration `%APPDATA%\dellprint\config.txt` (`KEY=WERT`, wird geparst, nicht
+ausgeführt): `HOST`, `PORT`, `PAPER`, `GS`, `FOO2HBPL1`, `HBPLDECODE`; die Kommandozeile
+hat Vorrang. Ghostscript wird gesucht in: Config `GS` → Registry → `C:\Program
+Files\gs\gs*\bin\gswin64c.exe` → `PATH`. Protokoll: `%LOCALAPPDATA%\dellprint\dellprint.log`.
+Prüfungen und Exit-Codes (0/1/2) wie auf dem Mac. Entfernen: `Deinstallieren.cmd`
+(`-Purge` löscht auch Config und Protokolle).
+
+**Binärdaten** laufen nie durch PowerShell-Pipes (PS 5.1 behandelt sie als Text): die
+Umwandlung läuft über `cmd.exe`-Pipes, gesendet wird per `TcpClient` aus der Datei.
+
+**Bauen:** `./build-windows.sh` (macOS: `brew install mingw-w64`; Linux: `apt install
+mingw-w64`) erzeugt `bin-win/foo2hbpl1.exe` und `hbpldecode.exe` (statisch, x64) aus
+demselben gepinnten foo2zjs-Commit wie `build.sh`, mit Binärmodus-Patch
+(`windows/patches/`). `GS=gs ./make-dist-windows.sh` baut `dist/dellprint-windows.zip`.
+
+**Tests:** `.github/workflows/windows.yml` (GitHub Actions): Linux-Job baut Binaries,
+Referenz-Datenstrom (nativer Encoder) und Paket; Windows-Job (`windows-latest`, Windows
+PowerShell 5.1, Ghostscript per `choco`) führt `tests/windows/run-tests.ps1` aus
+(Umwandlung, Dekodierung, Encoder-Gleichheit gegen die Referenz, Fehlerfälle, Senden an
+einen lokalen Listener, Mehrfachdateien, Config-Vorrang, Protokoll, Installer/Deinstaller).
+
+**Ungeprüft:** Lauf auf einem echten Windows-11-Rechner mit echtem Drucker,
+`winget`-Verfügbarkeit, Auflösung von `DELLxxxxxx.local` per mDNS, Farbwiedergabe.
+
 ## Tests
 
 `tests/run-tests.sh` (kein echter Drucker, Senden nur gegen `127.0.0.1`; benötigt
