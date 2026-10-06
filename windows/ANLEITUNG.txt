@@ -1,0 +1,54 @@
+﻿DELL C1660w DRUCKEN - INSTALLATIONSANLEITUNG (Windows 11)
+=========================================================
+
+Voraussetzung: Der Computer und der Drucker sind im selben WLAN bzw. Netzwerk,
+der Drucker ist eingeschaltet. Zum Installieren wird Internet benötigt.
+Sie brauchen Administrator-Rechte (Windows fragt einmal nach "Ja/Nein").
+
+1) ENTPACKEN
+   Die Datei "dellprint-windows.zip" mit der rechten Maustaste anklicken ->
+   "Alle extrahieren". Es entsteht ein Ordner. Den Ordner nicht verändern.
+
+2) INSTALLATION STARTEN
+   Im Ordner auf "Installieren.cmd" doppelklicken.
+   Beim ersten Mal zeigt Windows eventuell eine blaue Warnung
+   ("Der Computer wurde durch Windows geschützt"). Das ist normal, weil das
+   Programm nicht aus dem Microsoft Store stammt:
+   -> "Weitere Informationen" anklicken -> "Trotzdem ausführen".
+
+3) DEN ANWEISUNGEN IM FENSTER FOLGEN
+   Es öffnet sich ein schwarzes Fenster mit Text - das ist normal.
+   - Fehlt das Programm Ghostscript, wird es automatisch installiert.
+     Windows fragt dann "Möchten Sie zulassen, dass diese App Änderungen
+     vornimmt?" -> "Ja".
+   - Das Fenster fragt nach der Adresse des Druckers. Sie steht auf der
+     Statusseite des Druckers oder im Router (Name wie DELLxxxxxx.local oder
+     Zahlen wie 192.168.178.40). Eintippen, Eingabetaste.
+   - Am Ende fragt das Fenster "Probedruck jetzt senden? [j/N]".
+     Mit "j" und Eingabetaste kommt eine Testseite aus dem Drucker.
+
+4) DRUCKEN (ab jetzt immer so)
+   Eine PDF-Datei im Explorer mit der rechten Maustaste anklicken ->
+   (Windows 11: zuerst "Weitere Optionen anzeigen") -> "Senden an" ->
+   "Dell C1660w". Ein Fenster zeigt den Fortschritt; am Ende erscheint eine
+   Meldung "An Dell C1660w gesendet". Mehrere PDFs lassen sich gemeinsam
+   markieren und senden.
+   (Einstellungen wie Duplex oder Fach gibt es hier nicht; gedruckt wird
+   farbig auf A4.)
+
+WENN ETWAS NICHT KLAPPT
+   "Drucker ... nicht erreichbar":
+     - Drucker einschalten und 1-2 Minuten warten (er schläft sonst).
+     - Sind Computer und Drucker im selben WLAN/Netzwerk?
+     - Stimmt die Adresse? Sie steht in der Datei
+       %APPDATA%\dellprint\config.txt (Zeile "HOST=...").
+       Mit dem Editor öffnen, ändern, speichern.
+     - Danach noch einmal drucken.
+   Sonst: die Datei "install.log" bzw. "dellprint.log" im Ordner
+   %LOCALAPPDATA%\dellprint (in die Adresszeile des Explorers eintippen)
+   oder einen Screenshot des Fensters weitergeben.
+
+DEINSTALLIEREN
+   "Deinstallieren.cmd" doppelklicken (wie in Schritt 2). Einstellungen und
+   Protokoll bleiben erhalten; Ghostscript bleibt installiert (über
+   Windows-Einstellungen -> Apps entfernbar).
