@@ -40,7 +40,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$script:VERSION = "1.0"
+$script:DP_VERSION = "1.0"
 $script:PROG = "dellprint"
 
 # Umlaute auch bei umgeleiteter Ausgabe korrekt (Konsole ggf. ohne Handle -> ignorieren)
@@ -355,7 +355,7 @@ function Convert-One([string]$pdf, $o) {
 
 # ================================ Hauptprogramm =======================================
 if ($Help) { Usage; exit 0 }
-if ($Version) { Say "$PROG $VERSION"; exit 0 }
+if ($Version) { Say "$PROG $script:DP_VERSION"; exit 0 }
 
 $cfg = Read-Config $CONFIG
 

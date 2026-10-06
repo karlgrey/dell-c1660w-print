@@ -139,13 +139,13 @@ if ($cf -and $mf) {
 
 Write-Host "== Encoder-Gleichwertigkeit gegen Linux-/Mac-Referenz (Binärmodus-Patch) =="
 foreach ($k in @(@("color", "color.pam", "Farbe"), @("mono", "mono.pnm", "Mono"))) {
-    $out = Join-Path $T "$($k[0]).exe.hbpl"; $dec = Join-Path $T "$($k[0]).exe.dec.txt"
+    $out = Join-Path $T "$($k[0]).exe.hbpl"; $decOut = Join-Path $T "$($k[0]).exe.dec.txt"
     $rc = Encode (Join-Path $Ref $k[1]) $out
     Check "$($k[2]): foo2hbpl1.exe rc=0, Ausgabe nicht leer" ($rc -eq 0 -and (Get-Item $out).Length -gt 1000)
     $h1 = Body-Hash $out; $h2 = Body-Hash (Join-Path $Ref "$($k[0]).ref.hbpl")
     Check "$($k[2]): HBPL-Datenstrom (ab ENTER LANGUAGE) byte-identisch zur Referenz [$h1]" ($h1 -eq $h2 -and $h1 -ne "kein-marker")
-    [void](Decode $out $dec)
-    $a = Dec-Lines $dec; $b = Dec-Lines (Join-Path $Ref "$($k[0]).ref.dec.txt")
+    [void](Decode $out $decOut)
+    $a = Dec-Lines $decOut; $b = Dec-Lines (Join-Path $Ref "$($k[0]).ref.dec.txt")
     Check "$($k[2]): Dekodierung identisch zur Referenz ($($a.Count) Zeilen)" ($a.Count -gt 10 -and (($a -join "`n") -ceq ($b -join "`n")))
 }
 
