@@ -207,7 +207,9 @@ $p = Start-Listener 19100 4 $recv4      # je Datei: Prüfung + Auftrag
 $r = Run-DP @($pdf, $pdf2)
 Stop-Listener $p
 Check "2 PDFs nacheinander rc=0 (Sonderzeichen im Namen)" ($r.Rc -eq 0)
-Check "2 PDFs = doppelte Bytes" ((Get-Item $recv4).Length -eq 2 * (Get-Item $color).Length)
+# Der Auftragsname (im PJL-Kopf) hängt vom Dateinamen ab -> Länge nur ungefähr doppelt
+$d4 = (Get-Item $recv4).Length - 2 * (Get-Item $color).Length
+Check "2 PDFs = doppelte Bytes (Abweichung $d4 durch Auftragsname)" ([Math]::Abs($d4) -lt 100)
 $r = Run-DP @("-DryRun", $pdf, (Join-Path $T "fehlt.pdf"))
 Check "Mehrere Dateien: eine fehlt -> rc=1, die andere wird verarbeitet" ($r.Rc -eq 1 -and $r.Out -match 'Trockenlauf' -and $r.Out -match 'nicht gefunden')
 

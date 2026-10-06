@@ -165,7 +165,7 @@ PAPER=a4
 # Nur setzen, wenn Ghostscript nicht automatisch gefunden wird:
 # GS=C:\Program Files\gs\gs10.04.0\bin\gswin64c.exe
 "@
-    [System.IO.File]::WriteAllText($confFile, ($cfgText -replace "`r?`n", "`r`n"), (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText($confFile, (($cfgText -replace "`r?`n", "`r`n") + "`r`n"), (New-Object System.Text.UTF8Encoding($false)))
     Say "Einstellungen angelegt: $confFile"
     if ($h) {
         if (Test-Printer $h) { Say "Drucker $h antwortet." }
