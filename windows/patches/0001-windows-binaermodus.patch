@@ -1,0 +1,36 @@
+--- a/foo2hbpl1.c
++++ b/foo2hbpl1.c
+@@ -44,6 +44,7 @@
+ #include <ctype.h>
+ #include <string.h>
+ #include <unistd.h>
++#include "win-compat.h"
+ #include <stdarg.h>
+ #ifdef linux
+     #include <sys/utsname.h>
+@@ -652,6 +653,7 @@
+ int
+ main(int argc, char *argv[])
+ {
++    WIN_BINARY_STDIO();
+     int	c, i;
+ 
+     while ( (c = getopt(argc, argv, "m:u:J:U:V")) != EOF)
+--- a/hbpldecode.c
++++ b/hbpldecode.c
+@@ -29,6 +29,7 @@
+ #include <stdarg.h>
+ #include <string.h>
+ #include <unistd.h>
++#include "win-compat.h"
+ #include <errno.h>
+ 
+ #include "jbig.h"
+@@ -898,6 +899,7 @@
+ int
+ main(int argc, char *argv[])
+ {
++    WIN_BINARY_STDIO();
+     extern int	optind;
+     extern char	*optarg;
+     int		c;
